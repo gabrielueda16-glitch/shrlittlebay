@@ -44,6 +44,7 @@
     }
     .primary{background:var(--primary);color:#fff}
     .primary:hover{background:var(--primary-dark)}
+    button:disabled{opacity:.65;cursor:not-allowed}
     .secondary{background:#fff;color:var(--text);border:1px solid var(--border)}
     .danger{background:var(--danger);color:#fff}
     .screen{display:none}
@@ -247,6 +248,7 @@
 
 <script>
 const CONFIG = {
+  apiUrl: "https://script.google.com/macros/s/AKfycbxW82kuzReAWEddTJexpWhQ2Q2__jbz5Zcu-agaHHFMQcHxQT6rz2l-KbRxNHWxkCVl/exec",
   buildings: ["A","B","C","D","E","F","G"],
   unitsByBuilding: {
     A: ["A101","A102","A103","A104","A105","A201","A202","A203","A204","A205","A301","A302","A303","A304","A305"],
@@ -257,7 +259,7 @@ const CONFIG = {
     F: ["F001","F002","F003","F004","F101","F102","F103","F104","F105","F201","F202","F203","F204","F205","F301","F302","F303","F304","F305"],
     G: ["G101","G102","G103","G104","G105","G201","G202","G203","G204","G205","G301","G302","G303","G304","G305"]
   },
-  installers: ["Gabriel","Installer 2","Installer 3","Installer 4","Installer 5"],
+  installers: ["Pedro","Gabriel","Lucas","Install 1","Install 2","Install 3"],
   completionItems: ["SHELF DONE","GAP FILLER DONE","SCREW CAP DONE","DOOR DONE","END PANEL DONE","PIN SHELF DONE","HANDLES DONE","KICK FACE DONE","CAULKING DONE","CLEANING DONE"],
   missingItems: ["DOOR","SHELF","GAP FILLER","END PANEL","PIN SHELF","KICKER","HANDLE","OTHER"]
 };
@@ -340,16 +342,23 @@ function selectedValues(selector){
   return [...document.querySelectorAll(selector)].filter(x=>x.checked).map(x=>x.value);
 }
 
-function saveRecord(){
+async function saveRecord(){
   const installer = $("installer").value;
   const room = $("room").value;
   const cabinets = Number($("cabinets").value || 0);
   const workDate = $("workDate").value;
   const status = $("saveStatus");
+  const saveBtn = $("saveRecordBtn");
 
   if(!installer || !room || !workDate){
     status.className = "status err";
     status.textContent = "Please select installer, room and date.";
+    return;
+  }
+
+  if(!navigator.onLine){
+    status.className = "status err";
+    status.textContent = "No internet connection. Please connect and try again.";
     return;
   }
 
@@ -367,14 +376,39 @@ function saveRecord(){
     comments: $("comments").value.trim()
   };
 
-  const records = getRecords();
-  records.push(record);
-  saveRecords(records);
+  saveBtn.disabled = true;
+  saveBtn.textContent = "Saving...";
+  status.className = "status";
+  status.textContent = "";
 
-  status.className = "status ok";
-  status.textContent = "Installation saved successfully.";
+  try {
+    /*
+      Google Apps Script is on another domain. no-cors allows the browser
+      to submit the record without blocking it. The same record is also
+      kept in this browser so Weekly Report and CSV continue to work.
+    */
+    await fetch(CONFIG.apiUrl, {
+      method: "POST",
+      mode: "no-cors",
+      headers: {"Content-Type": "text/plain;charset=utf-8"},
+      body: JSON.stringify(record)
+    });
 
-  setTimeout(()=>openBuilding(selectedBuilding),700);
+    const records = getRecords();
+    records.push(record);
+    saveRecords(records);
+
+    status.className = "status ok";
+    status.textContent = "✓ Installation saved successfully in Google Sheets.";
+    setTimeout(()=>openBuilding(selectedBuilding),1100);
+  } catch(error) {
+    status.className = "status err";
+    status.textContent = "Error saving installation. Check the internet and try again.";
+    console.error(error);
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.textContent = "Save Installation";
+  }
 }
 
 function csvEscape(value){
