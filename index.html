@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SHR – Little Bay Installation Tracker</title>
+  <style>
+    :root{
+      --bg:#f3f6fb;
+      --card:#ffffff;
+      --text:#1d2433;
+      --muted:#667085;
+      --primary:#2563eb;
+      --primary-dark:#1d4ed8;
+      --success:#16a34a;
+      --danger:#dc2626;
+      --border:#d9e0ea;
+      --shadow:0 8px 24px rgba(15,23,42,.08);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:Arial, Helvetica, sans-serif;
+      background:var(--bg);
+      color:var(--text);
+    }
+    header{
+      background:#111827;
+      color:white;
+      padding:18px 20px;
+      position:sticky;
+      top:0;
+      z-index:10;
+    }
+    header h1{margin:0;font-size:22px}
+    header p{margin:5px 0 0;color:#d1d5db;font-size:14px}
+    main{max-width:1000px;margin:0 auto;padding:22px}
+    .toolbar{
+      display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px
+    }
+    button,.btn{
+      border:0;border-radius:12px;padding:12px 16px;
+      font-size:15px;font-weight:700;cursor:pointer;
+    }
+    .primary{background:var(--primary);color:#fff}
+    .primary:hover{background:var(--primary-dark)}
+    .secondary{background:#fff;color:var(--text);border:1px solid var(--border)}
+    .danger{background:var(--danger);color:#fff}
+    .screen{display:none}
+    .screen.active{display:block}
+    .section-title{margin:5px 0 16px}
+    .section-title h2{margin:0;font-size:24px}
+    .section-title p{margin:5px 0 0;color:var(--muted)}
+    .grid{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+      gap:14px;
+    }
+    .tile{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:16px;
+      min-height:110px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      padding:16px;
+      box-shadow:var(--shadow);
+      cursor:pointer;
+      transition:.15s;
+      font-size:20px;
+      font-weight:800;
+    }
+    .tile:hover{transform:translateY(-2px);border-color:var(--primary)}
+    .tile small{display:block;font-size:13px;color:var(--muted);margin-top:7px}
+    .panel{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:16px;
+      padding:18px;
+      box-shadow:var(--shadow);
+    }
+    .form-grid{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:14px;
+    }
+    label{display:block;font-weight:700;font-size:14px;margin-bottom:6px}
+    input,select,textarea{
+      width:100%;padding:12px;border-radius:10px;border:1px solid var(--border);
+      font-size:16px;background:#fff;
+    }
+    textarea{min-height:95px;resize:vertical}
+    .full{grid-column:1/-1}
+    .checks{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(185px,1fr));
+      gap:10px;
+    }
+    .check{
+      display:flex;align-items:center;gap:10px;
+      border:1px solid var(--border);border-radius:10px;padding:11px;
+      background:#fafafa;
+    }
+    .check input{width:20px;height:20px}
+    .status{
+      margin-top:14px;padding:12px;border-radius:10px;display:none;
+    }
+    .status.ok{display:block;background:#dcfce7;color:#166534}
+    .status.err{display:block;background:#fee2e2;color:#991b1b}
+    .summary{
+      display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));
+      gap:12px;margin-bottom:16px;
+    }
+    .metric{
+      background:#fff;border:1px solid var(--border);border-radius:14px;padding:15px;
+    }
+    .metric strong{display:block;font-size:28px;margin-top:5px}
+    table{width:100%;border-collapse:collapse;background:#fff}
+    th,td{padding:10px;border-bottom:1px solid var(--border);text-align:left;font-size:14px}
+    th{background:#f8fafc}
+    .table-wrap{overflow:auto;border:1px solid var(--border);border-radius:14px}
+    .breadcrumbs{color:var(--muted);margin-bottom:12px;font-size:14px}
+    @media(max-width:650px){
+      main{padding:15px}
+      .form-grid{grid-template-columns:1fr}
+      .tile{min-height:90px;font-size:18px}
+      header h1{font-size:19px}
+    }
+  </style>
+</head>
+<body>
+<header>
+  <h1>SHR – LITTLE BAY</h1>
+  <p>Installation completion tracker</p>
+</header>
+
+<main>
+  <div class="toolbar">
+    <button class="secondary" id="homeBtn">Home</button>
+    <button class="secondary" id="reportBtn">Weekly Report</button>
+    <button class="secondary" id="exportBtn">Export CSV</button>
+  </div>
+
+  <section id="buildingsScreen" class="screen active">
+    <div class="section-title">
+      <h2>Select Building</h2>
+      <p>Choose the building where the installation was completed.</p>
+    </div>
+    <div id="buildingGrid" class="grid"></div>
+  </section>
+
+  <section id="unitsScreen" class="screen">
+    <div class="breadcrumbs" id="unitsBreadcrumb"></div>
+    <div class="section-title">
+      <h2>Select Apartment</h2>
+      <p>Choose the correct unit.</p>
+    </div>
+    <div id="unitGrid" class="grid"></div>
+  </section>
+
+  <section id="formScreen" class="screen">
+    <div class="breadcrumbs" id="formBreadcrumb"></div>
+    <div class="section-title">
+      <h2>Installation Form</h2>
+      <p>Complete the details below and save the record.</p>
+    </div>
+
+    <div class="panel">
+      <div class="form-grid">
+        <div>
+          <label for="installer">Installer</label>
+          <select id="installer" required></select>
+        </div>
+
+        <div>
+          <label for="room">Room</label>
+          <select id="room" required>
+            <option value="">Select room</option>
+            <option>KITCHEN</option>
+            <option>LAUNDRY</option>
+            <option>MASTER</option>
+            <option>BED 1</option>
+            <option>BED 2</option>
+            <option>BED 3</option>
+            <option>STUDY</option>
+            <option>ENTRY</option>
+            <option>STORAGE</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="cabinets">Cabinets installed</label>
+          <input id="cabinets" type="number" min="0" step="1" value="0" required />
+        </div>
+
+        <div>
+          <label for="workDate">Date</label>
+          <input id="workDate" type="date" required />
+        </div>
+
+        <div class="full">
+          <label>Completed items</label>
+          <div class="checks" id="completionChecks"></div>
+        </div>
+
+        <div class="full">
+          <label>Missing material</label>
+          <div class="checks" id="missingChecks"></div>
+        </div>
+
+        <div class="full">
+          <label for="comments">Comments</label>
+          <textarea id="comments" placeholder="Example: 2 fillers missing in Bed 2"></textarea>
+        </div>
+
+        <div class="full">
+          <button class="primary" id="saveRecordBtn" type="button">Save Installation</button>
+          <div id="saveStatus" class="status"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="reportScreen" class="screen">
+    <div class="section-title">
+      <h2>Weekly Report</h2>
+      <p>Records from the selected week, grouped by installer.</p>
+    </div>
+
+    <div class="panel" style="margin-bottom:16px">
+      <div class="form-grid">
+        <div>
+          <label for="weekStart">Week starting</label>
+          <input id="weekStart" type="date" />
+        </div>
+        <div style="display:flex;align-items:end">
+          <button class="primary" id="generateReportBtn" type="button">Generate Report</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="reportContent"></div>
+  </section>
+</main>
+
+<script>
+const CONFIG = {
+  buildings: ["A","B","C","D","E","F","G"],
+  unitsByBuilding: {
+    A: ["A101","A102","A103","A104","A105","A201","A202","A203","A204","A205","A301","A302","A303","A304","A305"],
+    B: ["B101","B102","B103","B104","B105","B201","B202","B203","B204","B205","B301","B302","B303","B304","B305"],
+    C: ["C101","C102","C103","C104","C105","C201","C202","C203","C204","C205","C301","C302","C303","C304","C305"],
+    D: ["D101","D102","D103","D104","D105","D201","D202","D203","D204","D205","D301","D302","D303","D304","D305"],
+    E: ["E101","E102","E103","E201","E202","E203","E301","E302","E303"],
+    F: ["F001","F002","F003","F004","F101","F102","F103","F104","F105","F201","F202","F203","F204","F205","F301","F302","F303","F304","F305"],
+    G: ["G101","G102","G103","G104","G105","G201","G202","G203","G204","G205","G301","G302","G303","G304","G305"]
+  },
+  installers: ["Gabriel","Installer 2","Installer 3","Installer 4","Installer 5"],
+  completionItems: ["SHELF DONE","GAP FILLER DONE","SCREW CAP DONE","DOOR DONE","END PANEL DONE","PIN SHELF DONE","HANDLES DONE","KICK FACE DONE","CAULKING DONE","CLEANING DONE"],
+  missingItems: ["DOOR","SHELF","GAP FILLER","END PANEL","PIN SHELF","KICKER","HANDLE","OTHER"]
+};
+
+let selectedBuilding = "";
+let selectedUnit = "";
+
+const $ = id => document.getElementById(id);
+
+function showScreen(id){
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  $(id).classList.add("active");
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+
+function createTiles(){
+  const grid = $("buildingGrid");
+  grid.innerHTML = "";
+  CONFIG.buildings.forEach(b => {
+    const div = document.createElement("div");
+    div.className = "tile";
+    div.innerHTML = `<div>BUILDING ${b}<small>${CONFIG.unitsByBuilding[b].length} apartments</small></div>`;
+    div.addEventListener("click", () => openBuilding(b));
+    grid.appendChild(div);
+  });
+}
+
+function openBuilding(building){
+  selectedBuilding = building;
+  $("unitsBreadcrumb").textContent = `Home › Building ${building}`;
+  const grid = $("unitGrid");
+  grid.innerHTML = "";
+  CONFIG.unitsByBuilding[building].forEach(unit => {
+    const div = document.createElement("div");
+    div.className = "tile";
+    div.textContent = unit;
+    div.addEventListener("click", () => openForm(unit));
+    grid.appendChild(div);
+  });
+  showScreen("unitsScreen");
+}
+
+function openForm(unit){
+  selectedUnit = unit;
+  $("formBreadcrumb").textContent = `Home › Building ${selectedBuilding} › ${unit}`;
+  $("room").value = "";
+  $("cabinets").value = 0;
+  $("comments").value = "";
+  document.querySelectorAll("#completionChecks input,#missingChecks input").forEach(i=>i.checked=false);
+  $("saveStatus").className = "status";
+  $("saveStatus").textContent = "";
+  showScreen("formScreen");
+}
+
+function makeChecks(containerId, items, prefix){
+  const c = $(containerId);
+  c.innerHTML = "";
+  items.forEach((item,index)=>{
+    const wrap = document.createElement("label");
+    wrap.className = "check";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.id = `${prefix}_${index}`;
+    input.value = item;
+    const span = document.createElement("span");
+    span.textContent = item;
+    wrap.append(input,span);
+    c.appendChild(wrap);
+  });
+}
+
+function saveRecords(records){
+  localStorage.setItem("shr_installation_records", JSON.stringify(records));
+}
+function getRecords(){
+  try{return JSON.parse(localStorage.getItem("shr_installation_records") || "[]")}
+  catch{return []}
+}
+function selectedValues(selector){
+  return [...document.querySelectorAll(selector)].filter(x=>x.checked).map(x=>x.value);
+}
+
+function saveRecord(){
+  const installer = $("installer").value;
+  const room = $("room").value;
+  const cabinets = Number($("cabinets").value || 0);
+  const workDate = $("workDate").value;
+  const status = $("saveStatus");
+
+  if(!installer || !room || !workDate){
+    status.className = "status err";
+    status.textContent = "Please select installer, room and date.";
+    return;
+  }
+
+  const record = {
+    id: Date.now(),
+    timestamp: new Date().toISOString(),
+    date: workDate,
+    installer,
+    building: selectedBuilding,
+    unit: selectedUnit,
+    room,
+    cabinets,
+    completed: selectedValues("#completionChecks input"),
+    missing: selectedValues("#missingChecks input"),
+    comments: $("comments").value.trim()
+  };
+
+  const records = getRecords();
+  records.push(record);
+  saveRecords(records);
+
+  status.className = "status ok";
+  status.textContent = "Installation saved successfully.";
+
+  setTimeout(()=>openBuilding(selectedBuilding),700);
+}
+
+function csvEscape(value){
+  const s = Array.isArray(value) ? value.join(" | ") : String(value ?? "");
+  return `"${s.replaceAll('"','""')}"`;
+}
+
+function exportCSV(){
+  const records = getRecords();
+  if(!records.length){ alert("No records saved yet."); return; }
+
+  const headers = ["Date","Installer","Building","Unit","Room","Cabinets","Completed","Missing Material","Comments","Timestamp"];
+  const rows = records.map(r => [
+    r.date,r.installer,r.building,r.unit,r.room,r.cabinets,r.completed,r.missing,r.comments,r.timestamp
+  ]);
+  const csv = [headers,...rows].map(row=>row.map(csvEscape).join(",")).join("\n");
+  const blob = new Blob([csv],{type:"text/csv;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "SHR_Little_Bay_Installations.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function weekEnd(start){
+  const d = new Date(start+"T00:00:00");
+  d.setDate(d.getDate()+6);
+  return d;
+}
+function isoDate(d){return d.toISOString().slice(0,10)}
+
+function generateReport(){
+  const start = $("weekStart").value;
+  if(!start){ alert("Select the first day of the week."); return; }
+  const end = isoDate(weekEnd(start));
+  const records = getRecords().filter(r=>r.date>=start && r.date<=end);
+  const content = $("reportContent");
+
+  if(!records.length){
+    content.innerHTML = `<div class="panel">No records found from ${start} to ${end}.</div>`;
+    return;
+  }
+
+  const byInstaller = {};
+  records.forEach(r => {
+    if(!byInstaller[r.installer]) byInstaller[r.installer] = [];
+    byInstaller[r.installer].push(r);
+  });
+
+  let totalCabinets = records.reduce((s,r)=>s+r.cabinets,0);
+  let html = `
+    <div class="summary">
+      <div class="metric">Total records<strong>${records.length}</strong></div>
+      <div class="metric">Total cabinets<strong>${totalCabinets}</strong></div>
+      <div class="metric">Installers<strong>${Object.keys(byInstaller).length}</strong></div>
+      <div class="metric">Week ending<strong style="font-size:18px">${end}</strong></div>
+    </div>`;
+
+  Object.entries(byInstaller).forEach(([installer,items])=>{
+    const cabinets = items.reduce((s,r)=>s+r.cabinets,0);
+    const units = [...new Set(items.map(r=>r.unit))];
+    html += `
+      <div class="panel" style="margin-bottom:16px">
+        <h3 style="margin-top:0">${installer}</h3>
+        <p><strong>Cabinets installed:</strong> ${cabinets} &nbsp; | &nbsp;
+           <strong>Units worked:</strong> ${units.length}</p>
+        <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Date</th><th>Unit</th><th>Room</th><th>Cabinets</th><th>Completed</th><th>Missing</th><th>Comments</th>
+          </tr></thead>
+          <tbody>
+            ${items.map(r=>`
+              <tr>
+                <td>${r.date}</td>
+                <td>${r.unit}</td>
+                <td>${r.room}</td>
+                <td>${r.cabinets}</td>
+                <td>${r.completed.join(", ") || "-"}</td>
+                <td>${r.missing.join(", ") || "-"}</td>
+                <td>${r.comments || "-"}</td>
+              </tr>`).join("")}
+          </tbody>
+        </table>
+        </div>
+      </div>`;
+  });
+
+  content.innerHTML = html;
+}
+
+function init(){
+  createTiles();
+  makeChecks("completionChecks",CONFIG.completionItems,"done");
+  makeChecks("missingChecks",CONFIG.missingItems,"missing");
+
+  $("installer").innerHTML = `<option value="">Select installer</option>` +
+    CONFIG.installers.map(x=>`<option>${x}</option>`).join("");
+
+  const today = new Date();
+  $("workDate").value = isoDate(today);
+  const monday = new Date(today);
+  const day = monday.getDay() || 7;
+  monday.setDate(monday.getDate() - day + 1);
+  $("weekStart").value = isoDate(monday);
+
+  $("homeBtn").addEventListener("click",()=>showScreen("buildingsScreen"));
+  $("reportBtn").addEventListener("click",()=>showScreen("reportScreen"));
+  $("exportBtn").addEventListener("click",exportCSV);
+  $("saveRecordBtn").addEventListener("click",saveRecord);
+  $("generateReportBtn").addEventListener("click",generateReport);
+}
+init();
+</script>
+</body>
+</html>
