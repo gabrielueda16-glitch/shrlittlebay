@@ -140,6 +140,7 @@
 <main>
   <div class="toolbar">
     <button class="secondary" id="homeBtn">Home</button>
+    <button class="secondary" id="dashboardBtn">Dashboard</button>
     <button class="secondary" id="reportBtn">Weekly Report</button>
     <button class="secondary" id="exportBtn">Export CSV</button>
   </div>
@@ -191,9 +192,28 @@
           </select>
         </div>
 
+        <div class="full">
+          <h3 style="margin:4px 0 0">Production</h3>
+        </div>
+
         <div>
-          <label for="cabinets">Cabinets installed</label>
+          <label for="cabinets">Cabinets Installed</label>
           <input id="cabinets" type="number" min="0" step="1" value="0" required />
+        </div>
+
+        <div>
+          <label for="assembly">Cabinet Assembly</label>
+          <input id="assembly" type="number" min="0" step="1" value="0" />
+        </div>
+
+        <div>
+          <label for="fillers">Fillers</label>
+          <input id="fillers" type="number" min="0" step="1" value="0" />
+        </div>
+
+        <div>
+          <label for="cutModify">Cut & Modify</label>
+          <input id="cutModify" type="number" min="0" step="1" value="0" />
         </div>
 
         <div>
@@ -222,6 +242,32 @@
         </div>
       </div>
     </div>
+  </section>
+
+
+  <section id="dashboardScreen" class="screen">
+    <div class="section-title">
+      <h2>Production Dashboard</h2>
+      <p>Production totals recorded on this device. No installer ranking.</p>
+    </div>
+
+    <div class="panel" style="margin-bottom:16px">
+      <div class="form-grid">
+        <div>
+          <label for="dashboardStart">From</label>
+          <input id="dashboardStart" type="date" />
+        </div>
+        <div>
+          <label for="dashboardEnd">To</label>
+          <input id="dashboardEnd" type="date" />
+        </div>
+        <div class="full">
+          <button class="primary" id="refreshDashboardBtn" type="button">Refresh Dashboard</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="dashboardContent"></div>
   </section>
 
   <section id="reportScreen" class="screen">
@@ -259,7 +305,7 @@ const CONFIG = {
     F: ["F001","F002","F003","F004","F101","F102","F103","F104","F105","F201","F202","F203","F204","F205","F301","F302","F303","F304","F305"],
     G: ["G001","G002","G003","G004","G101","G102","G103","G104","G105","G201","G202","G203","G204","G205","G301","G302","G303","G304","G305"]
   },
-  installers: ["Pedro","Gabriel","Lucas","Install 1","Install 2","Install 3"],
+  installers: ["Gabriel Ueda","Lucas Hoffman","Lucas Domingues","Gabriel Chaklian","Arian","Pedro","Wesley","Caio Lucca","Fabio Rosa","Bass","Cristian Correa","Vinicius Telles","Samir","Kepner","Javier Salinas","Billy Panda","New Installer 1","New Installer 2","New Installer 3"],
   completionItems: ["SHELF DONE","GAP FILLER DONE","SCREW CAP DONE","DOOR DONE","END PANEL DONE","PIN SHELF DONE","HANDLES DONE","KICK FACE DONE","CAULKING DONE","CLEANING DONE"],
   missingItems: ["DOOR","SHELF","GAP FILLER","END PANEL","PIN SHELF","KICKER","HANDLE","OTHER"]
 };
@@ -307,6 +353,9 @@ function openForm(unit){
   $("formBreadcrumb").textContent = `Home › Building ${selectedBuilding} › ${unit}`;
   $("room").value = "";
   $("cabinets").value = 0;
+  $("assembly").value = 0;
+  $("fillers").value = 0;
+  $("cutModify").value = 0;
   $("comments").value = "";
   document.querySelectorAll("#completionChecks input,#missingChecks input").forEach(i=>i.checked=false);
   $("saveStatus").className = "status";
@@ -346,6 +395,9 @@ async function saveRecord(){
   const installer = $("installer").value;
   const room = $("room").value;
   const cabinets = Number($("cabinets").value || 0);
+  const assembly = Number($("assembly").value || 0);
+  const fillers = Number($("fillers").value || 0);
+  const cutModify = Number($("cutModify").value || 0);
   const workDate = $("workDate").value;
   const status = $("saveStatus");
   const saveBtn = $("saveRecordBtn");
@@ -371,6 +423,9 @@ async function saveRecord(){
     unit: selectedUnit,
     room,
     cabinets,
+    assembly,
+    fillers,
+    cutModify,
     completed: selectedValues("#completionChecks input"),
     missing: selectedValues("#missingChecks input"),
     comments: $("comments").value.trim()
@@ -420,9 +475,9 @@ function exportCSV(){
   const records = getRecords();
   if(!records.length){ alert("No records saved yet."); return; }
 
-  const headers = ["Date","Installer","Building","Unit","Room","Cabinets","Completed","Missing Material","Comments","Timestamp"];
+  const headers = ["Date","Installer","Building","Unit","Room","Cabinets Installed","Cabinet Assembly","Fillers","Cut & Modify","Completed","Missing Material","Comments","Timestamp"];
   const rows = records.map(r => [
-    r.date,r.installer,r.building,r.unit,r.room,r.cabinets,r.completed,r.missing,r.comments,r.timestamp
+    r.date,r.installer,r.building,r.unit,r.room,r.cabinets || 0,r.assembly || 0,r.fillers || 0,r.cutModify || 0,r.completed,r.missing,r.comments,r.timestamp
   ]);
   const csv = [headers,...rows].map(row=>row.map(csvEscape).join(",")).join("\n");
   const blob = new Blob([csv],{type:"text/csv;charset=utf-8"});
@@ -459,27 +514,41 @@ function generateReport(){
     byInstaller[r.installer].push(r);
   });
 
-  let totalCabinets = records.reduce((s,r)=>s+r.cabinets,0);
+  let totalCabinets = records.reduce((s,r)=>s+Number(r.cabinets || 0),0);
+  let totalAssembly = records.reduce((s,r)=>s+Number(r.assembly || 0),0);
+  let totalFillers = records.reduce((s,r)=>s+Number(r.fillers || 0),0);
+  let totalCutModify = records.reduce((s,r)=>s+Number(r.cutModify || 0),0);
   let html = `
     <div class="summary">
       <div class="metric">Total records<strong>${records.length}</strong></div>
-      <div class="metric">Total cabinets<strong>${totalCabinets}</strong></div>
+      <div class="metric">Cabinets installed<strong>${totalCabinets}</strong></div>
+      <div class="metric">Cabinet assembly<strong>${totalAssembly}</strong></div>
+      <div class="metric">Fillers<strong>${totalFillers}</strong></div>
+      <div class="metric">Cut & Modify<strong>${totalCutModify}</strong></div>
       <div class="metric">Installers<strong>${Object.keys(byInstaller).length}</strong></div>
       <div class="metric">Week ending<strong style="font-size:18px">${end}</strong></div>
     </div>`;
 
   Object.entries(byInstaller).forEach(([installer,items])=>{
-    const cabinets = items.reduce((s,r)=>s+r.cabinets,0);
+    const cabinets = items.reduce((s,r)=>s+Number(r.cabinets || 0),0);
+    const assembly = items.reduce((s,r)=>s+Number(r.assembly || 0),0);
+    const fillers = items.reduce((s,r)=>s+Number(r.fillers || 0),0);
+    const cutModify = items.reduce((s,r)=>s+Number(r.cutModify || 0),0);
     const units = [...new Set(items.map(r=>r.unit))];
     html += `
       <div class="panel" style="margin-bottom:16px">
         <h3 style="margin-top:0">${installer}</h3>
-        <p><strong>Cabinets installed:</strong> ${cabinets} &nbsp; | &nbsp;
-           <strong>Units worked:</strong> ${units.length}</p>
+        <p>
+          <strong>Cabinets installed:</strong> ${cabinets} &nbsp; | &nbsp;
+          <strong>Assembly:</strong> ${assembly} &nbsp; | &nbsp;
+          <strong>Fillers:</strong> ${fillers} &nbsp; | &nbsp;
+          <strong>Cut & Modify:</strong> ${cutModify} &nbsp; | &nbsp;
+          <strong>Units worked:</strong> ${units.length}
+        </p>
         <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>Date</th><th>Unit</th><th>Room</th><th>Cabinets</th><th>Completed</th><th>Missing</th><th>Comments</th>
+            <th>Date</th><th>Unit</th><th>Room</th><th>Installed</th><th>Assembly</th><th>Fillers</th><th>Cut & Modify</th><th>Completed</th><th>Missing</th><th>Comments</th>
           </tr></thead>
           <tbody>
             ${items.map(r=>`
@@ -487,7 +556,10 @@ function generateReport(){
                 <td>${r.date}</td>
                 <td>${r.unit}</td>
                 <td>${r.room}</td>
-                <td>${r.cabinets}</td>
+                <td>${r.cabinets || 0}</td>
+                <td>${r.assembly || 0}</td>
+                <td>${r.fillers || 0}</td>
+                <td>${r.cutModify || 0}</td>
                 <td>${r.completed.join(", ") || "-"}</td>
                 <td>${r.missing.join(", ") || "-"}</td>
                 <td>${r.comments || "-"}</td>
@@ -500,6 +572,79 @@ function generateReport(){
 
   content.innerHTML = html;
 }
+
+
+function generateDashboard(){
+  const start = $("dashboardStart").value;
+  const end = $("dashboardEnd").value;
+  const records = getRecords().filter(r => (!start || r.date >= start) && (!end || r.date <= end));
+  const content = $("dashboardContent");
+
+  const totals = {
+    cabinets: records.reduce((s,r)=>s+Number(r.cabinets || 0),0),
+    assembly: records.reduce((s,r)=>s+Number(r.assembly || 0),0),
+    fillers: records.reduce((s,r)=>s+Number(r.fillers || 0),0),
+    cutModify: records.reduce((s,r)=>s+Number(r.cutModify || 0),0)
+  };
+
+  const byBuilding = {};
+  records.forEach(r=>{
+    if(!byBuilding[r.building]){
+      byBuilding[r.building] = {records:0,cabinets:0,assembly:0,fillers:0,cutModify:0};
+    }
+    byBuilding[r.building].records += 1;
+    byBuilding[r.building].cabinets += Number(r.cabinets || 0);
+    byBuilding[r.building].assembly += Number(r.assembly || 0);
+    byBuilding[r.building].fillers += Number(r.fillers || 0);
+    byBuilding[r.building].cutModify += Number(r.cutModify || 0);
+  });
+
+  let html = `
+    <div class="summary">
+      <div class="metric">Cabinets Installed<strong>${totals.cabinets}</strong></div>
+      <div class="metric">Cabinet Assembly<strong>${totals.assembly}</strong></div>
+      <div class="metric">Fillers<strong>${totals.fillers}</strong></div>
+      <div class="metric">Cut & Modify<strong>${totals.cutModify}</strong></div>
+    </div>`;
+
+  if(!records.length){
+    content.innerHTML = html + `<div class="panel">No production records found for this period.</div>`;
+    return;
+  }
+
+  html += `
+    <div class="panel">
+      <h3 style="margin-top:0">Production by Building</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Building</th>
+              <th>Records</th>
+              <th>Installed</th>
+              <th>Assembly</th>
+              <th>Fillers</th>
+              <th>Cut & Modify</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${Object.keys(byBuilding).sort().map(building=>`
+              <tr>
+                <td>Building ${building}</td>
+                <td>${byBuilding[building].records}</td>
+                <td>${byBuilding[building].cabinets}</td>
+                <td>${byBuilding[building].assembly}</td>
+                <td>${byBuilding[building].fillers}</td>
+                <td>${byBuilding[building].cutModify}</td>
+              </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  content.innerHTML = html;
+}
+
 
 function init(){
   createTiles();
@@ -515,12 +660,16 @@ function init(){
   const day = monday.getDay() || 7;
   monday.setDate(monday.getDate() - day + 1);
   $("weekStart").value = isoDate(monday);
+  $("dashboardStart").value = isoDate(monday);
+  $("dashboardEnd").value = isoDate(today);
 
   $("homeBtn").addEventListener("click",()=>showScreen("buildingsScreen"));
+  $("dashboardBtn").addEventListener("click",()=>{ showScreen("dashboardScreen"); generateDashboard(); });
   $("reportBtn").addEventListener("click",()=>showScreen("reportScreen"));
   $("exportBtn").addEventListener("click",exportCSV);
   $("saveRecordBtn").addEventListener("click",saveRecord);
   $("generateReportBtn").addEventListener("click",generateReport);
+  $("refreshDashboardBtn").addEventListener("click",generateDashboard);
 }
 init();
 </script>
