@@ -135,7 +135,7 @@
 <body>
 <header>
   <h1>SHR – LITTLE BAY</h1>
-  <p>Installation and production tracker · V3.2.2 SHEETS FIX</p>
+  <p>Installation and production tracker · V3.3 SHEETS.2 SHEETS FIX</p>
 </header>
 
 <main>
@@ -294,6 +294,7 @@
 </main>
 
 <script>
+
 const CONFIG = {
   apiUrl: "https://script.google.com/macros/s/AKfycbxW82kuzReAWEddTJexpWhQ2Q2__jbz5Zcu-agaHHFMQcHxQT6rz2l-KbRxNHWxkCVl/exec",
   buildings: ["A","B","C","D","E","F","G"],
@@ -392,53 +393,30 @@ function selectedValues(selector){
   return [...document.querySelectorAll(selector)].filter(x=>x.checked).map(x=>x.value);
 }
 
-function postToGoogleSheets(record){
+function sendToGoogleSheets(record){
   return new Promise((resolve, reject) => {
-    const iframeName = "shr_submit_frame_" + Date.now();
-
     const iframe = document.createElement("iframe");
-    iframe.name = iframeName;
     iframe.style.display = "none";
 
-    const form = document.createElement("form");
-    form.method = "POST";
-    form.action = CONFIG.apiUrl;
-    form.target = iframeName;
-    form.style.display = "none";
+    const payload = encodeURIComponent(JSON.stringify(record));
+    const separator = CONFIG.apiUrl.includes("?") ? "&" : "?";
+    iframe.src = CONFIG.apiUrl + separator + "payload=" + payload + "&t=" + Date.now();
 
-    const payload = document.createElement("input");
-    payload.type = "hidden";
-    payload.name = "payload";
-    payload.value = JSON.stringify(record);
+    let completed = false;
 
-    form.appendChild(payload);
-    document.body.appendChild(iframe);
-    document.body.appendChild(form);
-
-    let finished = false;
-
-    const cleanup = () => {
-      setTimeout(() => {
-        form.remove();
-        iframe.remove();
-      }, 500);
+    const finish = (ok) => {
+      if (completed) return;
+      completed = true;
+      setTimeout(() => iframe.remove(), 500);
+      ok ? resolve() : reject(new Error("Google Sheets request failed."));
     };
 
-    iframe.addEventListener("load", () => {
-      if (finished) return;
-      finished = true;
-      cleanup();
-      resolve();
-    });
+    iframe.addEventListener("load", () => finish(true));
+    iframe.addEventListener("error", () => finish(false));
 
-    setTimeout(() => {
-      if (finished) return;
-      finished = true;
-      cleanup();
-      reject(new Error("Google Sheets did not respond in time."));
-    }, 15000);
+    document.body.appendChild(iframe);
 
-    form.submit();
+    setTimeout(() => finish(false), 20000);
   });
 }
 
@@ -488,14 +466,14 @@ async function saveRecord(){
   status.textContent = "";
 
   try {
-    await postToGoogleSheets(record);
+    await sendToGoogleSheets(record);
 
     const records = getRecords();
     records.push(record);
     saveRecords(records);
 
     status.className = "status ok";
-    status.textContent = "✓ Installation sent to Google Sheets.";
+    status.textContent = "✓ Installation sent. Check the Records sheet.";
     setTimeout(()=>openBuilding(selectedBuilding),1200);
   } catch(error) {
     status.className = "status err";
@@ -713,6 +691,7 @@ function init(){
   $("refreshDashboardBtn").addEventListener("click",generateDashboard);
 }
 init();
+
 
 </script>
 </body>
