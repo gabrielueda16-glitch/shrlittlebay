@@ -96,6 +96,56 @@ function selectedValues(selector){
   return [...document.querySelectorAll(selector)].filter(x=>x.checked).map(x=>x.value);
 }
 
+function postToGoogleSheets(record){
+  return new Promise((resolve, reject) => {
+    const iframeName = "shr_submit_frame_" + Date.now();
+
+    const iframe = document.createElement("iframe");
+    iframe.name = iframeName;
+    iframe.style.display = "none";
+
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = CONFIG.apiUrl;
+    form.target = iframeName;
+    form.style.display = "none";
+
+    const payload = document.createElement("input");
+    payload.type = "hidden";
+    payload.name = "payload";
+    payload.value = JSON.stringify(record);
+
+    form.appendChild(payload);
+    document.body.appendChild(iframe);
+    document.body.appendChild(form);
+
+    let finished = false;
+
+    const cleanup = () => {
+      setTimeout(() => {
+        form.remove();
+        iframe.remove();
+      }, 500);
+    };
+
+    iframe.addEventListener("load", () => {
+      if (finished) return;
+      finished = true;
+      cleanup();
+      resolve();
+    });
+
+    setTimeout(() => {
+      if (finished) return;
+      finished = true;
+      cleanup();
+      reject(new Error("Google Sheets did not respond in time."));
+    }, 15000);
+
+    form.submit();
+  });
+}
+
 async function saveRecord(){
   const installer = $("installer").value;
   const room = $("room").value;
@@ -142,28 +192,18 @@ async function saveRecord(){
   status.textContent = "";
 
   try {
-    /*
-      Google Apps Script is on another domain. no-cors allows the browser
-      to submit the record without blocking it. The same record is also
-      kept in this browser so Weekly Report and CSV continue to work.
-    */
-    await fetch(CONFIG.apiUrl, {
-      method: "POST",
-      mode: "no-cors",
-      headers: {"Content-Type": "text/plain;charset=utf-8"},
-      body: JSON.stringify(record)
-    });
+    await postToGoogleSheets(record);
 
     const records = getRecords();
     records.push(record);
     saveRecords(records);
 
     status.className = "status ok";
-    status.textContent = "✓ Installation saved successfully in Google Sheets.";
-    setTimeout(()=>openBuilding(selectedBuilding),1100);
+    status.textContent = "✓ Installation sent to Google Sheets.";
+    setTimeout(()=>openBuilding(selectedBuilding),1200);
   } catch(error) {
     status.className = "status err";
-    status.textContent = "Error saving installation. Check the internet and try again.";
+    status.textContent = "Could not send to Google Sheets. Please try again.";
     console.error(error);
   } finally {
     saveBtn.disabled = false;
